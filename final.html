@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RegIntel Dashboard - Neon Glow</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- Custom Theme & Base Styles --- */
+        :root {
+            --accent-color: #00FFAB;
+            --accent-color-dark: #00D18F;
+            --background-primary: #0d0d0d;
+            --background-secondary: #1a1a1a;
+            --border-color: #2e2e2e;
+            --text-primary: #e5e7eb; /* gray-200 */
+            --text-secondary: #9ca3af; /* gray-400 */
+            
+            /* -- Glow Colors -- */
+            --glow-blue: #00cfff;
+            --glow-green: #22c55e;
+            --glow-lime: #a3e635;
+            --glow-yellow: #facc15;
+            --glow-amber: #f59e0b;
+            --glow-red: #ef4444;
+            --glow-purple: #a78bfa;
+            --glow-cyan: #22d3ee;
+        }
+        html, body {
+            height: 100%;
+            overflow-x: hidden;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-primary);
+            color: var(--text-primary);
+        }
+        main {
+            scroll-behavior: smooth;
+            transition: all 0.3s ease-in-out;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--background-secondary); }
+        ::-webkit-scrollbar-thumb { background: #4a4a4a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6a6a6a; }
+
+        /* --- Collapsible Sidebar --- */
+        aside {
+            transition: width 0.3s ease-in-out;
+            position: sticky;
+            top: 1rem;
+            align-self: start;
+            height: calc(100vh - 2rem);
+        }
+        aside.collapsed {
+            width: 80px;
+        }
+        aside .collapsible-content, aside .sidebar-title-full {
+            transition: opacity 0.2s ease-out, visibility 0.2s;
+        }
+        aside.collapsed .collapsible-content,
+        aside.collapsed .sidebar-title-full {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        aside .sidebar-title-collapsed {
+            writing-mode: vertical-lr;
+            transform: rotate(180deg);
+            opacity: 0;
+            transition: opacity 0.2s ease-out;
+            display: none;
+        }
+        aside.collapsed .sidebar-title-collapsed {
+            display: block;
+            opacity: 1;
+        }
+        #sidebar-toggle svg {
+            transition: transform 0.3s ease-in-out;
+        }
+        aside.collapsed #sidebar-toggle svg {
+            transform: rotate(180deg);
+        }
+
+        /* --- Animations --- */
+        @keyframes pulse {
+            50% { opacity: .7; }
+        }
+        @keyframes bubble-breath {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+        .animate-pulse-num {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* --- Card Styles --- */
+        .card {
+            background-color: rgba(26, 26, 26, 0.2); /* bg-opacity-20 */
+            -webkit-backdrop-filter: blur(12px); /* backdrop-blur-md */
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem; /* rounded-xl */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            --tw-shadow-color: transparent;
+            --tw-shadow: 0 0 #0000;
+        }
+        .card:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            border-color: rgba(107, 114, 128, 0.4);
+            filter: drop-shadow(0 0 12px var(--tw-shadow-color));
+        }
+        .kpi-card.kpi-card-glow-green:hover { --tw-shadow-color: var(--glow-green); }
+        .kpi-card.kpi-card-glow-blue:hover { --tw-shadow-color: var(--glow-blue); }
+        .kpi-card.kpi-card-glow-yellow:hover { --tw-shadow-color: var(--glow-yellow); }
+        .kpi-card.kpi-card-glow-red:hover { --tw-shadow-color: var(--glow-red); }
+
+        .kpi-card-icon {
+            transition: all 0.3s ease-in-out;
+            filter: drop-shadow(0 0 8px var(--tw-shadow-color));
+        }
+        .kpi-card:hover .kpi-card-icon {
+            transform: scale(1.1) rotate(-5deg);
+        }
+
+        /* --- Problem-Solution Carousel --- */
+        .carousel-container { position: relative; }
+        .carousel-track { display: flex; transition: transform 0.5s ease-in-out; }
+        .carousel-slide { min-width: 100%; flex-shrink: 0; box-sizing: border-box; }
+        .carousel-dots { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+        .carousel-dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--border-color); cursor: pointer; transition: background-color 0.3s, transform 0.3s; }
+        .carousel-dot.active { background-color: white; transform: scale(1.2); }
+        .carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); background-color: rgba(26, 26, 26, 0.7); border: 1px solid var(--border-color); border-radius: 9999px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; z-index: 10; transition: background-color 0.2s; }
+        .carousel-btn:hover { background-color: rgba(46, 46, 46, 0.9); }
+        #carousel-prev { left: -20px; }
+        #carousel-next { right: -20px; }
+
+
+        /* --- D3 & Visualization Styles --- */
+        .tooltip {
+            position: absolute;
+            padding: 10px 16px;
+            border-radius: 0.75rem; /* rounded-xl */
+            color: white;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s, filter 0.3s, backdrop-filter 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            z-index: 9999;
+            max-width: 280px;
+            font-size: 0.875rem;
+            background-color: rgba(20, 20, 20, 0.5); /* bg-opacity-50 */
+            -webkit-backdrop-filter: blur(10px); /* backdrop-blur-lg */
+            backdrop-filter: blur(10px);
+            /* ✨ NEON GLOW for tooltip ✨ */
+            filter: drop-shadow(0 0 10px var(--glow-color, transparent));
+        }
+        
+        .impact-bar-segment {
+            transition: transform 0.2s ease-out, filter 0.2s ease-out;
+            cursor: pointer;
+            /* ✨ NEON GLOW for bars ✨ */
+            filter: drop-shadow(0 0 6px var(--glow-color));
+        }
+        .impact-bar-segment:hover {
+            transform: scale(1.05);
+            filter: drop-shadow(0 0 12px var(--glow-color));
+        }
+        
+        .bipartite-link { transition: stroke 0.3s ease, stroke-opacity 0.3s ease; }
+        .bipartite-node:hover { cursor: pointer; }
+        .bipartite-node.faded { opacity: 0.2; }
+        .bipartite-link.faded { stroke-opacity: 0.05; }
+        .bipartite-link.highlight { stroke: var(--accent-color) !important; stroke-opacity: 1 !important; stroke-width: 2px !important; }
+        
+    </style>
+</head>
+<body class="p-4 bg-black">
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <div id="dashboard-container" class="flex flex-row gap-6">
+
+        <aside class="w-full lg:w-1/4 xl:w-1/5 card p-4 flex flex-col gap-4">
+            <header class="flex items-start justify-between">
+                 <div class="flex-grow overflow-hidden flex items-center h-full">
+                    <h1 class="sidebar-title-full text-2xl font-bold text-white">RegIntel</h1>
+                    <h2 class="sidebar-title-collapsed text-lg font-semibold text-white text-center">Dashboard</h2>
+                </div>
+                <button id="sidebar-toggle" class="p-2 rounded-md hover:bg-gray-700 flex-shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+            </header>
+            
+            <div class="collapsible-content flex flex-col gap-6 flex-grow min-h-0">
+                <div>
+                    <p class="text-sm text-gray-400 -mt-4 mb-4">Policy & Regulation Visualizer</p>
+                    <div class="flex flex-col gap-4">
+                        <h2 class="text-lg font-semibold" style="color: var(--accent-color);">Filters</h2>
+                        <div>
+                            <label for="sectorFilter" class="block text-sm font-medium text-gray-300 mb-1">Filter by Sector</label>
+                            <select id="sectorFilter" class="w-full bg-gray-800/50 border border-gray-700 rounded-md px-3 py-2 text-sm focus:ring-2 focus:outline-none" style="--tw-ring-color: var(--accent-color);">
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-grow flex flex-col min-h-0">
+                    <h2 class="text-lg font-semibold pb-2 mb-2" style="color: var(--accent-color); border-bottom: 1px solid var(--border-color);">Details</h2>
+                    <div id="details-panel-content" class="flex-grow overflow-y-auto pr-2 min-h-[200px]">
+                        <p class="text-gray-500 text-center mt-8">Click on a node or chart element to see details.</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="w-full flex-grow flex flex-col gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <div id="summary-total-regulations" class="card kpi-card p-4"></div>
+                <div id="summary-total-policies" class="card kpi-card p-4"></div>
+                <div id="summary-high-impact-regulations" class="card kpi-card p-4"></div>
+                <div id="summary-critical-policies" class="card kpi-card p-4"></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div id="criticalness-chart-container" class="card p-4"></div>
+                <div id="top-sector-card" class="card p-4"></div>
+            </div>
+
+            <div id="deadline-cards-container" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                </div>
+
+            <section class="flex flex-col gap-4">
+                 <h2 class="text-2xl font-bold text-white">Problem-Solution Overview</h2>
+                <div class="carousel-container">
+                    <div class="overflow-hidden rounded-xl">
+                        <div id="carousel-track" class="carousel-track">
+                        </div>
+                    </div>
+                     <button id="carousel-prev" class="carousel-btn">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button id="carousel-next" class="carousel-btn">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                    <div id="carousel-dots" class="carousel-dots">
+                    </div>
+                </div>
+            </section>
+
+             <div class="flex-grow grid grid-cols-1 gap-4 min-h-[600px]">
+                <div class="card relative flex flex-col p-4">
+                    <h3 class="text-lg font-semibold text-white z-10">Regulation-Policy Network</h3>
+                    <div id="network-graph-container" class="flex-grow w-full h-full">
+                         <svg id="network-graph" class="w-full h-full"></svg>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        // --- DATA (Embedded for portability) ---
+        let regulationsData = [
+          { "id": "reg_EU_AMLD6_001", "title": "New EU AMLD6 Update: Enhanced Due Diligence for Digital Assets", "description": "Strengthened requirements for crypto-asset transactions and beneficial ownership disclosures.", "publicationDate": "2025-06-15", "effectiveDate": "2026-01-01", "relevantSectors": [ "Banking", "Finance", "Crypto" ], "impactLevel": "High", "referenceLink": "http://example.com/regulation/amld6" },
+          { "id": "reg_FinCEN_002", "title": "FinCEN Advisory on AI-Powered Fraud Detection", "description": "Encourages financial institutions to adopt AI tools to detect suspicious activities.", "publicationDate": "2025-05-10", "effectiveDate": "2025-12-01", "relevantSectors": [ "Banking", "Finance", "Tech" ], "impactLevel": "High", "referenceLink": "http://example.com/regulation/fincen-ai" },
+          { "id": "reg_GLOB_PRIVACY_001", "title": "Global Data Privacy Regulation 2025", "description": "Cross-industry regulation requiring enhanced user consent and data encryption.", "publicationDate": "2025-04-05", "effectiveDate": "2025-10-01", "relevantSectors": [ "Tech", "Healthcare", "Education", "Finance" ], "impactLevel": "Medium", "referenceLink": "http://example.com/regulation/privacy2025" },
+          { "id": "reg_ce403beb", "title": "Industry Regulation 1", "description": "Description for regulation 1.", "publicationDate": "2025-03-28", "effectiveDate": "2026-10-31", "relevantSectors": [ "Banking", "Education", "Tech", "Crypto" ], "impactLevel": "Medium", "referenceLink": "http://example.com/regulation/1" },
+          { "id": "reg_cf8b5f9d", "title": "Industry Regulation 2", "description": "Description for regulation 2.", "publicationDate": "2023-07-17", "effectiveDate": "2025-10-25", "relevantSectors": [ "Manufacturing", "Finance" ], "impactLevel": "Low", "referenceLink": "http://example.com/regulation/2" },
+          { "id": "reg_64a13afa", "title": "Industry Regulation 3", "description": "Description for regulation 3.", "publicationDate": "2025-05-27", "effectiveDate": "2025-10-20", "relevantSectors": [ "Manufacturing" ], "impactLevel": "Low", "referenceLink": "http://example.com/regulation/3" },
+          { "id": "reg_6ccac88d", "title": "Industry Regulation 4", "description": "Description for regulation 4.", "publicationDate": "2024-04-12", "effectiveDate": "2025-08-08", "relevantSectors": [ "Healthcare", "Manufacturing", "Finance" ], "impactLevel": "High", "referenceLink": "http://example.com/regulation/4" },
+          { "id": "reg_f8a6f304", "title": "Industry Regulation 5", "description": "Description for regulation 5.", "publicationDate": "2025-06-03", "effectiveDate": "2026-09-19", "relevantSectors": [ "Finance" ], "impactLevel": "High", "referenceLink": "http://example.com/regulation/5" },
+          { "id": "reg_0a0130b8", "title": "Industry Regulation 6", "description": "Description for regulation 6.", "publicationDate": "2023-12-04", "effectiveDate": "2026-03-15", "relevantSectors": [ "Finance", "Manufacturing" ], "impactLevel": "Low", "referenceLink": "http://example.com/regulation/6" },
+          { "id": "reg_59d8d9c4", "title": "Industry Regulation 7", "description": "Description for regulation 7.", "publicationDate": "2023-08-12", "effectiveDate": "2025-11-09", "relevantSectors": [ "Finance" ], "impactLevel": "High", "referenceLink": "http://example.com/regulation/7" },
+        ];
+        let policiesData = [
+          { "id": "pol_23f568fb", "policyName": "Policy 1 Name", "description": "Internal policy description 1.", "relatedSector": "Finance", "impactedByRegulationIds": [ "reg_EU_AMLD6_001", "reg_0a0130b8" ], "criticalnessScore": "Low", "lastUpdated": "2025-06-10" },
+          { "id": "pol_f094c04e", "policyName": "Policy 2 Name", "description": "Internal policy description 2.", "relatedSector": "Banking", "impactedByRegulationIds": [ "reg_5bcbae3b" ], "criticalnessScore": "Low", "lastUpdated": "2024-03-15" },
+          { "id": "pol_c2cdd66a", "policyName": "Policy 3 Name", "description": "Internal policy description 3.", "relatedSector": "Finance", "impactedByRegulationIds": [ "reg_59d8d9c4" ], "criticalnessScore": "Medium", "lastUpdated": "2025-03-13" },
+          { "id": "pol_ca57a204", "policyName": "Policy 4 Name", "description": "Internal policy description 4.", "relatedSector": "Finance", "impactedByRegulationIds": [ "reg_59d8d9c4", "reg_0a0130b8", "reg_f8a6f304" ], "criticalnessScore": "High", "lastUpdated": "2024-05-20" },
+          { "id": "pol_ebcec4e3", "policyName": "Policy 6 Name", "description": "Internal policy description 6.", "relatedSector": "Healthcare", "impactedByRegulationIds": [ "reg_6ccac88d", "reg_GLOB_PRIVACY_001" ], "criticalnessScore": "Critical", "lastUpdated": "2024-04-02" },
+          { "id": "pol_57e38686", "policyName": "Policy 7 Name", "description": "Internal policy description 7.", "relatedSector": "Manufacturing", "impactedByRegulationIds": [ "reg_64a13afa", "reg_cf8b5f9d" ], "criticalnessScore": "High", "lastUpdated": "2025-01-25" },
+          { "id": "pol_d6f64a3a", "policyName": "Policy 19 Name", "description": "Internal policy description 19.", "relatedSector": "IT", "impactedByRegulationIds": [ "reg_GLOB_PRIVACY_001" ], "criticalnessScore": "High", "lastUpdated": "2024-05-11" },
+          { "id": "pol_7b3ad23a", "policyName": "Policy 20 Name", "description": "Internal policy description 20.", "relatedSector": "Education", "impactedByRegulationIds": [ "reg_5156c608" ], "criticalnessScore": "High", "lastUpdated": "2024-08-13" },
+          { "id": "pol_9f6b4fc7", "policyName": "Policy 26 Name", "description": "Internal policy description 26.", "relatedSector": "Tech", "impactedByRegulationIds": [ "reg_b168b3cb", "reg_64a13afa", "reg_6a7c2c57" ], "criticalnessScore": "Critical", "lastUpdated": "2024-01-20" },
+        ];
+
+        // --- DASHBOARD SCRIPT ---
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- GLOBAL STATE & CONFIG ---
+            const state = {
+                filters: { sector: 'All' },
+                selectedNode: null,
+                carousel: { currentIndex: 0, totalSlides: 0, intervalId: null }
+            };
+            
+            const colorScales = {
+                // ✨ MODIFIED: Changed High impact color to red
+                impact: { 'High': 'var(--glow-red)', 'Medium': 'var(--glow-lime)', 'Low': 'var(--glow-green)' },
+                criticalness: { 'Critical': 'var(--glow-red)', 'High': 'var(--glow-amber)', 'Medium': 'var(--glow-lime)', 'Low': 'var(--glow-green)' },
+                sector: d3.scaleOrdinal(d3.schemeTableau10),
+                compliance: [ 'var(--glow-cyan)', 'var(--glow-lime)', 'var(--glow-amber)', 'var(--glow-purple)']
+            };
+            
+            const tooltip = d3.select("#tooltip");
+            let currentFilteredRegulations = [];
+            let currentFilteredPolicies = [];
+
+            // --- INITIALIZATION ---
+            function initializeDashboard() {
+                populateFilters();
+                setupCarousel();
+                setupEventListeners();
+                setTimeout(() => {
+                    updateDashboard();
+                    startCarouselAutoplay();
+                }, 100);
+            }
+
+            function populateFilters() {
+                const allSectors = new Set();
+                regulationsData.forEach(r => r.relevantSectors.forEach(s => allSectors.add(s)));
+                policiesData.forEach(p => allSectors.add(p.relatedSector));
+
+                const sectorFilter = d3.select("#sectorFilter");
+                sectorFilter.html('')
+                    .append("option").attr("value", "All").text("All Sectors");
+                Array.from(allSectors).sort().forEach(sector => {
+                    sectorFilter.append("option").attr("value", sector).text(sector);
+                });
+            }
+
+            function setupEventListeners() {
+                d3.select("#sectorFilter").on("change", function() {
+                    state.filters.sector = this.value;
+                    updateDashboard();
+                });
+
+                d3.select("#sidebar-toggle").on("click", function() {
+                    const sidebar = d3.select('aside');
+                    sidebar.classed('collapsed', !sidebar.classed('collapsed'));
+                    setTimeout(updateDashboard, 300); 
+                });
+                
+                d3.select("#carousel-prev").on("click", () => {
+                    showSlide(state.carousel.currentIndex - 1);
+                    stopCarouselAutoplay();
+                });
+                d3.select("#carousel-next").on("click", () => {
+                    showSlide(state.carousel.currentIndex + 1);
+                    stopCarouselAutoplay();
+                });
+            }
+
+            // --- CAROUSEL LOGIC ---
+            function setupCarousel() {
+                const problemSolutionData = [
+                    { id: 'latest-regulations-timeline-chart', title: 'Sudden Regulation Changes Go Unnoticed', drawFunc: drawLatestRegulationsTimeline },
+                    { id: 'regulatory-impact-chart', title: 'Regulatory Impact Breakdown by Sector', drawFunc: drawRegulatoryImpactChart },
+                    { id: 'compliance-progress-chart', title: 'Unclear Progress Toward Compliance Goals', drawFunc: drawComplianceProgress },
+                    { id: 'risk-radar-chart', title: 'Emerging Risk Concentration Zones', drawFunc: drawRiskRadarChart },
+                ];
+
+                state.carousel.totalSlides = problemSolutionData.length;
+                const track = d3.select("#carousel-track");
+                const dotsContainer = d3.select("#carousel-dots");
+                track.html('');
+                dotsContainer.html('');
+
+                problemSolutionData.forEach((d, i) => {
+                    track.append('div')
+                        .attr('id', `slide-${i}`)
+                        .attr('class', 'carousel-slide p-1')
+                        .html(`
+                            <div class="card p-6 h-[500px] flex flex-col">
+                                <h3 class="text-xl font-bold text-white mb-4 text-center">${d.title}</h3>
+                                <div id="${d.id}-target" class="w-full h-full flex-grow relative"></div>
+                            </div>
+                        `);
+                    
+                    dotsContainer.append('div')
+                        .attr('class', 'carousel-dot')
+                        .attr('id', `dot-${i}`)
+                        .on('click', () => { showSlide(i); stopCarouselAutoplay(); });
+                });
+                showSlide(0);
+            }
+            
+            function showSlide(index) {
+                const { totalSlides } = state.carousel;
+                index = (index + totalSlides) % totalSlides; // Wrap around
+                state.carousel.currentIndex = index;
+
+                d3.select("#carousel-track").style("transform", `translateX(-${index * 100}%)`);
+                d3.selectAll('.carousel-dot').classed('active', (d, i) => i === index);
+                
+                drawActiveCarouselChart();
+            }
+
+            function drawActiveCarouselChart() {
+                const index = state.carousel.currentIndex;
+                const activeSlide = d3.select(`#slide-${index}`);
+                if (activeSlide.property('chartDrawn')) return;
+
+                const targetDiv = activeSlide.select('[id$="-target"]');
+                const chartId = targetDiv.attr('id').replace('-target', '');
+                
+                const chartToDraw = [
+                    { id: 'latest-regulations-timeline-chart', drawFunc: drawLatestRegulationsTimeline },
+                    { id: 'regulatory-impact-chart', drawFunc: drawRegulatoryImpactChart },
+                    { id: 'compliance-progress-chart', drawFunc: drawComplianceProgress },
+                    { id: 'risk-radar-chart', drawFunc: drawRiskRadarChart },
+                ].find(d => d.id === chartId);
+                
+                if (chartToDraw) {
+                    chartToDraw.drawFunc(targetDiv.attr('id'));
+                    activeSlide.property('chartDrawn', true);
+                }
+            }
+            
+            function startCarouselAutoplay() {
+                stopCarouselAutoplay();
+                state.carousel.intervalId = setInterval(() => {
+                    showSlide(state.carousel.currentIndex + 1);
+                }, 8000);
+            }
+
+            function stopCarouselAutoplay() {
+                if (state.carousel.intervalId) {
+                    clearInterval(state.carousel.intervalId);
+                    state.carousel.intervalId = null;
+                }
+            }
+
+            // --- DATA FILTERING ---
+            function filterData() {
+                const { sector } = state.filters;
+                currentFilteredRegulations = regulationsData.filter(r => sector === 'All' || r.relevantSectors.includes(sector));
+                const filteredRegulationIds = new Set(currentFilteredRegulations.map(r => r.id));
+                currentFilteredPolicies = policiesData.filter(p => {
+                    const matchesSector = sector === 'All' || p.relatedSector === sector;
+                    const isConnected = p.impactedByRegulationIds.some(regId => filteredRegulationIds.has(regId));
+                    return matchesSector || isConnected;
+                });
+            }
+
+            // --- UPDATE & DRAW FUNCTIONS ---
+            function updateDashboard() {
+                filterData();
+                updateSummaryCards(currentFilteredRegulations, currentFilteredPolicies);
+                drawCriticalnessChart(currentFilteredPolicies);
+                drawTopSectorCard(currentFilteredPolicies);
+                drawDeadlineCards(currentFilteredRegulations);
+                drawBipartiteGraph();
+                
+                d3.selectAll('.carousel-slide').property('chartDrawn', false);
+                drawActiveCarouselChart();
+            }
+            
+            function updateSummaryCards(regulations, policies) {
+                const summaryData = [
+                    { id: '#summary-total-regulations', title: 'Total Regulations', value: regulations.length, icon: 'M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5', glowClass: 'kpi-card-glow-green', glowColor: 'var(--glow-green)' },
+                    { id: '#summary-total-policies', title: 'Total Policies', value: policies.length, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', glowClass: 'kpi-card-glow-blue', glowColor: 'var(--glow-blue)' },
+                    { id: '#summary-high-impact-regulations', title: 'High Impact Regulations', value: regulations.filter(r => r.impactLevel === 'High').length, icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z', glowClass: 'kpi-card-glow-red', glowColor: 'var(--glow-red)' }, // MODIFIED for consistency
+                    { id: '#summary-critical-policies', title: 'Critical Policies', value: policies.filter(p => p.criticalnessScore === 'Critical').length, icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z', glowClass: 'kpi-card-glow-red', glowColor: 'var(--glow-red)' }
+                ];
+                
+                summaryData.forEach(d => {
+                    const card = d3.select(d.id).attr('class', `card kpi-card p-4 ${d.glowClass}`);
+                    card.html(`
+                        <div class="flex items-center gap-4">
+                            <div class="flex-shrink-0 p-2 rounded-full" style="--tw-shadow-color: ${d.glowColor};">
+                                <svg class="w-8 h-8 kpi-card-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="${d.icon}"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-gray-400 text-sm">${d.title}</p>
+                                <p class="value-text text-3xl font-bold text-white animate-pulse-num">0</p>
+                            </div>
+                        </div>
+                    `);
+                    card.select('.kpi-card-icon').style('color', d.glowColor);
+                    card.select('.value-text')
+                        .transition().duration(1000)
+                        .tween('text', function() {
+                            const i = d3.interpolate(this.textContent, d.value);
+                            return function(t) { this.textContent = Math.round(i(t)); };
+                        });
+                });
+            }
+
+            function drawBarChart(containerId, data, title, key, colorScale) {
+                const container = d3.select(containerId).html('');
+                const counts = d3.rollup(data, v => v.length, d => d[key]);
+                const sectorBreakdown = d3.group(data, d => d[key], d => d.relatedSector);
+                const chartData = Array.from(counts, ([name, value]) => ({name, value})).sort((a,b) => b.value - a.value);
+                container.append('h4').attr('class', 'text-base font-semibold text-white mb-2').text(title);
+                const svg = container.append('svg').attr('class', 'w-full');
+                const margin = {top: 5, right: 10, bottom: 5, left: 60};
+                const containerNode = container.node();
+                if (!containerNode) return;
+                const barHeight = 25, paddingBetweenBars = 5;
+                const calculatedHeight = chartData.length * (barHeight + paddingBetweenBars) + margin.top + margin.bottom;
+                svg.attr('height', calculatedHeight);
+                const width = containerNode.clientWidth - margin.left - margin.right;
+                const height = calculatedHeight - margin.top - margin.bottom;
+                if (width <= 0 || height <= 0) return;
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                const y = d3.scaleBand().range([0, height]).padding(0.2).domain(chartData.map(d => d.name));
+                const x = d3.scaleLinear().range([0, width]).domain([0, d3.max(chartData, d => d.value)]);
+                g.append("g").call(d3.axisLeft(y).tickSize(0).tickPadding(8)).selectAll("text").attr("class", "text-xs fill-gray-300");
+                g.selectAll(".domain").remove();
+                g.selectAll(".bar").data(chartData).enter().append("rect")
+                    .attr("class", "impact-bar-segment")
+                    .attr("y", d => y(d.name)).attr("height", y.bandwidth())
+                    .attr("x", 0).attr("width", 0)
+                    .attr("fill", d => colorScale[d.name])
+                    .style("--glow-color", d => colorScale[d.name])
+                    .attr("rx", 3)
+                    .on("mouseover", function(event, d) {
+                        const color = colorScale[d.name];
+                        const sectors = sectorBreakdown.get(d.name);
+                        let tooltipHtml = `<strong>${d.value} ${d.name} Policies</strong>`;
+                        if(sectors) {
+                            tooltipHtml += `<hr class="my-1 border-gray-500">`;
+                            Array.from(sectors.entries()).forEach(([sector, policies]) => {
+                                tooltipHtml += `<div>${sector}: ${policies.length}</div>`;
+                            });
+                        }
+                        tooltip.style("opacity", 1)
+                               .style("--glow-color", color)
+                               .html(tooltipHtml);
+                    })
+                    .on("mousemove", (event) => tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px"))
+                    .on("mouseout", () => tooltip.style("opacity", 0).style("--glow-color", 'transparent'))
+                    .transition().duration(800).attr("width", d => x(d.value));
+            }
+
+            function drawCriticalnessChart(policies) {
+                drawBarChart('#criticalness-chart-container', policies, 'Severity of Policy Impact Across Sectors', 'criticalnessScore', colorScales.criticalness);
+            }
+            
+            function drawTopSectorCard(policies) {
+                const container = d3.select("#top-sector-card").html('');
+                container.append('h4').attr('class', 'text-base font-semibold text-white mb-2').text('Top Sectors by Policy Count');
+                const counts = d3.rollup(policies, v => v.length, d => d.relatedSector);
+                const chartData = Array.from(counts, ([name, value]) => ({name, value}))
+                                    .sort((a,b) => b.value - a.value).slice(0, 5);
+                
+                if (chartData.length === 0) {
+                    container.append('p').attr('class', 'text-gray-400 text-sm').text('No policy data for this filter.');
+                    return;
+                }
+                const chartContent = container.append('div').attr('class', 'space-y-2');
+                const maxCount = d3.max(chartData, d => d.value);
+                chartData.forEach(d => {
+                    const color = colorScales.sector(d.name);
+                    const row = chartContent.append('div').attr('class', 'grid grid-cols-12 items-center gap-2 text-sm');
+                    row.append('div').attr('class', 'col-span-4 text-gray-300 truncate').text(d.name);
+                    const barContainer = row.append('div').attr('class', 'col-span-7 bg-gray-800/50 rounded-full');
+                    barContainer.append('div').attr('class', 'h-2 rounded-full')
+                        .style('background-color', color)
+                        .style('box-shadow', `0 0 8px ${color}`)
+                        .style('width', '0%').transition().duration(800)
+                        .style('width', `${(d.value / maxCount) * 100}%`);
+                    row.append('div').attr('class', 'col-span-1 text-white font-semibold text-right').text(d.value);
+                });
+            }
+
+            // --- ✨ MODIFIED: Static Cards for Upcoming Deadlines with new icon/color ---
+            function drawDeadlineCards(regulations) {
+                const container = d3.select("#deadline-cards-container").html('');
+
+                const upcoming = regulations
+                    .filter(r => new Date(r.effectiveDate) > new Date())
+                    .sort((a, b) => new Date(a.effectiveDate) - new Date(b.effectiveDate));
+
+                const daysUntil = (targetDate) => {
+                    const diffTime = new Date(targetDate).getTime() - new Date().getTime();
+                    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                };
+
+                const impactLevels = [
+                    { level: 'High', title: 'Critical Upcoming Deadlines' },
+                    { level: 'Medium', title: 'Moderate Upcoming Deadlines' },
+                    { level: 'Low', title: 'Low-Impact Upcoming Deadlines' }
+                ];
+
+                impactLevels.forEach(impact => {
+                    const levelData = upcoming.filter(r => r.impactLevel === impact.level).slice(0, 3);
+                    const color = colorScales.impact[impact.level];
+
+                    const card = container.append('div')
+                        .attr('class', 'card p-4 flex flex-col');
+
+                    const isCritical = impact.level === 'High';
+                    const iconSvg = isCritical 
+                        ? `<svg class="w-6 h-6" style="color: ${color}; filter: drop-shadow(0 0 4px ${color});" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path></svg>`
+                        : `<svg class="w-6 h-6" style="color: ${color}; filter: drop-shadow(0 0 4px ${color});" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+
+                    card.html(`
+                        <div class="flex items-center gap-3 pb-3 mb-3" style="border-bottom: 2px solid ${color};">
+                            ${iconSvg}
+                            <h4 class="text-base font-semibold text-white">${impact.title}</h4>
+                        </div>
+                    `);
+
+                    const listContainer = card.append('div').attr('class', 'space-y-4 flex-grow');
+
+                    if (levelData.length === 0) {
+                        listContainer.append('p').attr('class', 'text-sm text-gray-500 italic h-full flex items-center justify-center').text('No deadlines in this category.');
+                    } else {
+                        levelData.forEach(d => {
+                            const daysLeft = daysUntil(d.effectiveDate);
+                            listContainer.append('div').attr('class', 'text-sm')
+                                .html(`
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-medium text-gray-200 truncate pr-2">${d.title}</span>
+                                        <span class="font-bold text-lg whitespace-nowrap" style="color: ${color}; text-shadow: 0 0 6px ${color};">${daysLeft} days</span>
+                                    </div>
+                                    <p class="text-xs text-gray-400">Effective: ${d.effectiveDate}</p>
+                                `);
+                        });
+                    }
+                });
+            }
+
+
+            // --- CAROUSEL CHART FUNCTIONS ---
+
+            function drawLatestRegulationsTimeline(targetContainerId) {
+                const container = d3.select(`#${targetContainerId}`).html('');
+                const parseDate = d3.timeParse("%Y-%m-%d");
+                const regulations = currentFilteredRegulations
+                    .filter(r => r.publicationDate && r.effectiveDate)
+                    .sort((a, b) => parseDate(b.publicationDate) - parseDate(a.publicationDate))
+                    .slice(0, 10);
+
+                if (regulations.length === 0) {
+                    container.append('p').attr('class', 'text-gray-400 text-center mt-4').text('No relevant regulations found.');
+                    return;
+                }
+
+                const svg = container.append('svg').attr('class', 'w-full h-full');
+                const margin = {top: 20, right: 20, bottom: 80, left: 250}; 
+                const svgWidth = container.node().clientWidth, svgHeight = container.node().clientHeight;
+                if (svgWidth <= 0 || svgHeight <= 0) return;
+
+                const width = svgWidth - margin.left - margin.right, height = svgHeight - margin.top - margin.bottom;
+                if (width <= 0 || height <= 0) return;
+
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                const allDates = regulations.flatMap(d => [parseDate(d.publicationDate), parseDate(d.effectiveDate)]).filter(Boolean);
+                if (allDates.length === 0) return;
+                const x = d3.scaleTime().domain(d3.extent(allDates)).range([0, width]);
+                const y = d3.scaleBand().domain(regulations.map(d => d.title)).range([0, height]).padding(0.5);
+
+                g.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(d3.timeMonth.every(3)).tickFormat(d3.timeFormat("%b %Y")))
+                    .selectAll("text").attr("transform", "rotate(-30)").style("text-anchor", "end").style('fill', 'var(--text-secondary)');
+                g.append("g").call(d3.axisLeft(y).tickSize(0).tickPadding(5)).selectAll("text").attr("x", -margin.left + 10).style("text-anchor", "start").style('fill', 'var(--text-primary)');
+                g.selectAll(".domain").remove();
+                
+                const timelineItems = g.selectAll(".timeline-item").data(regulations).enter().append("g");
+
+                timelineItems.append("line")
+                    .attr("x1", d => x(parseDate(d.publicationDate))).attr("x2", d => x(parseDate(d.effectiveDate)))
+                    .attr("y1", d => y(d.title) + y.bandwidth() / 2).attr("y2", d => y(d.title) + y.bandwidth() / 2)
+                    .attr("stroke", "var(--border-color)").attr("stroke-width", 2);
+
+                timelineItems.append("text")
+                    .attr("x", d => x(parseDate(d.publicationDate)) + (x(parseDate(d.effectiveDate)) - x(parseDate(d.publicationDate))) / 2)
+                    .attr("y", d => y(d.title) + y.bandwidth() / 2 - 10)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "var(--text-secondary)")
+                    .attr("font-size", "10px")
+                    .text(d => {
+                        const start = parseDate(d.publicationDate);
+                        const end = parseDate(d.effectiveDate);
+                        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+                        return diffMonths > 0 ? `${diffMonths} mo` : '';
+                    });
+
+                const addPoint = (selection, dateField, color, tooltipPrefix) => {
+                    const pointGroup = selection
+                        .data(regulations.filter(d => d[dateField]))
+                        .enter().append("g")
+                        .attr("transform", d => `translate(${x(parseDate(d[dateField]))}, ${y(d.title) + y.bandwidth() / 2})`);
+
+                    pointGroup.append("circle")
+                        .attr("class", "timeline-dot-visible")
+                        .attr("r", 6)
+                        .attr("fill", color)
+                        .style("filter", d => `drop-shadow(0 0 5px ${typeof color === 'function' ? color(d) : color})`)
+                        .style("pointer-events", "none")
+                        .transition().duration(200);
+
+                    pointGroup.append("circle")
+                        .attr("r", 12) 
+                        .attr("fill", "transparent")
+                        .style("cursor", "pointer")
+                        .on("mouseover", function(event, d) {
+                            d3.select(this.parentNode).select('.timeline-dot-visible').transition().duration(150).attr('r', 8);
+                            const pointColor = typeof color === 'function' ? color(d) : color;
+                            tooltip.style("opacity", 1)
+                                   .style("--glow-color", pointColor)
+                                   .html(`<strong>${tooltipPrefix}:</strong> ${d.title}<br>${d[dateField]}`);
+                        })
+                        .on("mousemove", (event) => {
+                            tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px");
+                        })
+                        .on("mouseout", function() {
+                            d3.select(this.parentNode).select('.timeline-dot-visible').transition().duration(150).attr('r', 6);
+                            tooltip.style("opacity", 0).style("--glow-color", 'transparent');
+                        });
+                };
+
+                addPoint(g.selectAll(".start-point"), 'publicationDate', 'var(--accent-color)', 'Published');
+                addPoint(g.selectAll(".end-point"), 'effectiveDate', d => colorScales.impact[d.impactLevel], 'Effective');
+            }
+
+            function drawRegulatoryImpactChart(targetContainerId) {
+                const container = d3.select(`#${targetContainerId}`).html('');
+                const sectorCounts = {};
+                currentFilteredRegulations.forEach(reg => {
+                    reg.relevantSectors.forEach(sector => {
+                        if (!sectorCounts[sector]) sectorCounts[sector] = { sector: sector, High: 0, Medium: 0, Low: 0, total: 0 };
+                        sectorCounts[sector][reg.impactLevel]++;
+                        sectorCounts[sector].total++;
+                    });
+                });
+                let chartData = Object.values(sectorCounts).sort((a, b) => b.total - a.total);
+                if (chartData.length === 0) {
+                    container.append('p').attr('class', 'text-gray-400 text-center mt-4').text('No regulatory data for this view.');
+                    return;
+                }
+                const impactLevels = ['High', 'Medium', 'Low'];
+                const svg = container.append('svg').attr('class', 'w-full h-full');
+                const margin = { top: 10, right: 20, bottom: 30, left: 100 };
+                const width = container.node().clientWidth - margin.left - margin.right;
+                const height = container.node().clientHeight - margin.top - margin.bottom;
+                if (width <= 0 || height <= 0) return;
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                const stack = d3.stack().keys(impactLevels);
+                const series = stack(chartData);
+                const y = d3.scaleBand().domain(chartData.map(d => d.sector)).range([0, height]).padding(0.3);
+                const x = d3.scaleLinear().domain([0, d3.max(chartData, d => d.total)]).range([0, width]);
+                g.append("g").call(d3.axisLeft(y).tickSize(0).tickPadding(10)).selectAll("text").style("fill", "var(--text-primary)");
+                g.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(Math.min(5, d3.max(chartData, d=>d.total)))).selectAll("text").style("fill", "var(--text-secondary)");
+                g.selectAll(".domain").remove();
+                
+                const groups = g.selectAll("g.layer").data(series).enter().append("g")
+                    .attr("fill", d => colorScales.impact[d.key])
+                    .style("--glow-color", d => colorScales.impact[d.key]);
+
+                groups.selectAll("rect").data(d => d).enter().append("rect")
+                    .attr("class", "impact-bar-segment")
+                    .attr("y", d => y(d.data.sector)).attr("height", y.bandwidth())
+                    .attr("x", d => x(d[0])).attr("width", d => Math.max(0, x(d[1]) - x(d[0])))
+                    .on("mouseover", function(event, d) {
+                        const key = d3.select(this.parentNode).datum().key;
+                        const color = colorScales.impact[key];
+                        tooltip.style("opacity", 1)
+                               .style("--glow-color", color)
+                               .html(`<strong>${d.data.sector}</strong><br/>${key} Impact: ${d.data[key]}`);
+                    })
+                    .on("mousemove", (event) => tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px"))
+                    .on("mouseout", () => tooltip.style("opacity", 0).style("--glow-color", 'transparent'));
+            }
+
+            function drawComplianceProgress(targetContainerId) {
+                const container = d3.select(`#${targetContainerId}`).html('');
+                const projects = [ { name: "AMLD6 Compliance", progress: 85 }, { name: "Privacy Policy Update", progress: 60 }, { name: "Market Entry Regs", progress: 30 }, { name: "Data Security Audit", progress: 95 }];
+                const parentDiv = container.append('div').attr('class', 'grid grid-cols-2 md:grid-cols-4 gap-4 w-full h-full items-center');
+                const tau = 2 * Math.PI;
+                const gaugeContainers = parentDiv.selectAll('div').data(projects).enter().append('div').attr('class', 'flex flex-col items-center justify-center gap-2');
+                
+                gaugeContainers.each(function(p, i) {
+                    const gaugeContainer = d3.select(this);
+                    const color = colorScales.compliance[i % colorScales.compliance.length];
+                    const svg = gaugeContainer.append('svg').attr('width', 150).attr('height', 150).append('g').attr('transform', `translate(75,75)`);
+                    const arc = d3.arc().innerRadius(60).outerRadius(72).startAngle(0).cornerRadius(10);
+                    
+                    svg.append('path').datum({ endAngle: tau }).style('fill', '#334155').attr('d', arc);
+                    
+                    const foreground = svg.append('path').datum({ endAngle: 0 })
+                        .style('fill', color)
+                        .style('filter', `drop-shadow(0 0 8px ${color})`)
+                        .attr('d', arc);
+                        
+                    const percentText = svg.append('text').attr('text-anchor', 'middle').attr('dy', '.35em')
+                        .style('fill', '#e5e7eb').style('font-size', '24px').style('font-weight', 'bold')
+                        .style('text-shadow', `0 0 5px ${color}`)
+                        .text('0%');
+                        
+                    gaugeContainer.append('p').attr('class', 'text-center text-sm text-gray-300 mt-2').text(p.name);
+                    
+                    foreground.transition().duration(1500).attrTween('d', (d) => {
+                        const interpolate = d3.interpolate(d.endAngle, (p.progress / 100) * tau);
+                        return (t) => { d.endAngle = interpolate(t); return arc(d); };
+                    });
+                    
+                    percentText.transition().duration(1500).tween('text', function() {
+                        const i = d3.interpolate(0, p.progress);
+                        return function(t) { d3.select(this).text(`${Math.round(i(t))}%`); };
+                    });
+                });
+            }
+
+            function drawRiskRadarChart(targetContainerId) {
+                const container = d3.select(`#${targetContainerId}`).html('');
+                const dummyRiskData = [ { area: "Financial", value: 70 }, { area: "Legal", value: 45 }, { area: "Operational", value: 85 }, { area: "Reputational", value: 60 }, { area: "Cyber", value: 90 }];
+                const svg = container.append('svg').attr('class', 'w-full h-full');
+                const width = container.node().clientWidth, height = container.node().clientHeight;
+                if (width <= 0 || height <= 0) return;
+                const radius = Math.min(width, height) / 2 - 60;
+                const g = svg.append("g").attr("transform", `translate(${width/2},${height/2})`);
+                const rScale = d3.scaleLinear().range([0, radius]).domain([0, 100]);
+                const angleSlice = Math.PI * 2 / dummyRiskData.length;
+                const glowColor = 'var(--glow-red)';
+
+                g.selectAll(".radar-grid-circle").data(d3.range(1, 5).reverse()).enter().append("circle")
+                    .attr("r", d => radius / 4 * d).style("fill", "none").style("stroke", "var(--border-color)").style("stroke-dasharray", "2,2");
+
+                const axes = g.selectAll(".radar-axis").data(dummyRiskData).enter().append("g").attr("class", "radar-axis");
+                axes.append("line").attr("x1", 0).attr("y1", 0)
+                    .attr("x2", (d, i) => rScale(105) * Math.cos(angleSlice * i - Math.PI / 2))
+                    .attr("y2", (d, i) => rScale(105) * Math.sin(angleSlice * i - Math.PI / 2)).style('stroke', 'var(--border-color)');
+                axes.append("text").attr("class", "text-sm").style('fill', 'var(--text-primary)')
+                    .attr("text-anchor", "middle").attr("dy", "0.35em")
+                    .attr("x", (d, i) => rScale(120) * Math.cos(angleSlice * i - Math.PI / 2))
+                    .attr("y", (d, i) => rScale(120) * Math.sin(angleSlice * i - Math.PI / 2)).text(d => d.area);
+
+                const radarLine = d3.lineRadial().curve(d3.curveCatmullRomClosed).radius(d => rScale(d.value)).angle((d, i) => i * angleSlice);
+                g.append("path").datum(dummyRiskData)
+                    .style('fill', 'rgba(239, 68, 68, 0.4)')
+                    .style('stroke', glowColor)
+                    .style('stroke-width', '2px')
+                    .style('filter', `drop-shadow(0 0 12px ${glowColor})`)
+                    .attr("d", radarLine).attr("transform", "scale(0)").transition().duration(1000).attr("transform", "scale(1)");
+
+                g.selectAll(".radar-hover-zone")
+                    .data(dummyRiskData)
+                    .enter().append("path")
+                    .attr("d", (d, i) => {
+                        const path = d3.path();
+                        const prevAngle = angleSlice * (i - 0.5) - Math.PI / 2;
+                        const nextAngle = angleSlice * (i + 0.5) - Math.PI / 2;
+                        path.moveTo(0, 0);
+                        path.arc(0, 0, radius + 40, prevAngle, nextAngle);
+                        path.closePath();
+                        return path.toString();
+                    })
+                    .style("fill", "transparent")
+                    .style("cursor", "pointer")
+                    .on("mouseover", (event, d) => {
+                        tooltip.style("opacity", 1)
+                               .style("--glow-color", glowColor)
+                               .html(`<strong>${d.area} Risk</strong><br/>Score: ${d.value}`);
+                    })
+                    .on("mousemove", (event) => tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px"))
+                    .on("mouseout", () => tooltip.style("opacity", 0).style("--glow-color", 'transparent'));
+            }
+
+            function drawBipartiteGraph() {
+                const svg = d3.select("#network-graph").html('');
+                const parentContainer = d3.select("#network-graph-container").node();
+                const width = parentContainer.clientWidth, height = parentContainer.clientHeight;
+                if (width <= 0 || height <= 0) return;
+                
+                const margin = { top: 20, right: 150, bottom: 20, left: 250 };
+                const chartWidth = width - margin.left - margin.right;
+                const chartHeight = height - margin.top - margin.bottom;
+                const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                
+                let regNodes = currentFilteredRegulations.map(d => ({...d, type: 'regulation'}));
+                let polNodes = currentFilteredPolicies.map(d => ({...d, type: 'policy'}));
+                regNodes.sort((a, b) => d3.ascending(a.impactLevel, b.impactLevel));
+                polNodes.sort((a, b) => d3.ascending(a.criticalnessScore, b.criticalnessScore));
+
+                const nodes = [...regNodes, ...polNodes];
+                const nodeMap = new Map(nodes.map(n => [n.id, n]));
+                const links = currentFilteredPolicies.flatMap(p => p.impactedByRegulationIds
+                    .filter(rId => nodeMap.has(rId) && nodeMap.has(p.id))
+                    .map(rId => ({ source: nodeMap.get(rId), target: nodeMap.get(p.id) }))
+                );
+
+                const regY = d3.scalePoint().domain(regNodes.map(d => d.id)).range([0, chartHeight]).padding(0.5);
+                const polY = d3.scalePoint().domain(polNodes.map(d => d.id)).range([0, chartHeight]).padding(0.5);
+
+                nodes.forEach(n => {
+                    n.x = n.type === 'regulation' ? 0 : chartWidth;
+                    n.y = n.type === 'regulation' ? regY(n.id) : polY(n.id);
+                });
+
+                const link = g.append("g").selectAll("path").data(links).join("path")
+                    .attr("d", d3.linkHorizontal().x(n => n.x).y(n => n.y))
+                    .attr("class", "bipartite-link").attr("stroke", "#444").attr("stroke-opacity", 0.3).attr("fill", "none");
+
+                const node = g.append("g").selectAll("g").data(nodes).join("g")
+                    .attr("class", "bipartite-node").attr("transform", d => `translate(${d.x},${d.y})`);
+                
+                node.filter(d => d.type === 'regulation').append("circle").attr("r", 8).attr("fill", d => colorScales.impact[d.impactLevel]);
+                node.filter(d => d.type === 'policy').append("rect").attr("x", -6).attr("y", -6).attr("width", 12).attr("height", 12).attr("rx", 2).attr("fill", d => colorScales.criticalness[d.criticalnessScore]);
+                
+                node.append("text").text(d => d.title || d.policyName).attr("x", d => d.type === 'regulation' ? -20 : 20).attr("dy", "0.35em")
+                    .attr("text-anchor", d => d.type === 'regulation' ? "end" : "start").attr("fill", "var(--text-primary)").attr("font-size", "11px");
+
+                node.on("mouseover", function(event, d) {
+                    const connectedLinks = link.filter(l => l.source.id === d.id || l.target.id === d.id);
+                    const connectedNodeIds = new Set([d.id, ...connectedLinks.data().flatMap(l => [l.source.id, l.target.id])]);
+                    node.classed("faded", n => !connectedNodeIds.has(n.id));
+                    link.classed("faded", l => !(l.source.id === d.id || l.target.id === d.id));
+                    connectedLinks.raise().classed('highlight', true);
+                    const color = d.type === 'regulation' ? colorScales.impact[d.impactLevel] : colorScales.criticalness[d.criticalnessScore];
+                    tooltip.style("opacity", 1)
+                           .style("--glow-color", color)
+                           .html(`<strong>${d.type === 'regulation' ? 'Regulation' : 'Policy'}</strong><br>${d.title || d.policyName}`);
+                })
+                .on("mousemove", (event) => tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px"))
+                .on("mouseout", function() {
+                    node.classed("faded", false);
+                    link.classed("faded", false).classed('highlight', false);
+                    tooltip.style("opacity", 0).style("--glow-color", 'transparent');
+                })
+                .on("click", (event, d) => updateDetailsPanel(d));
+            }
+            
+            function updateDetailsPanel(d) {
+                const panel = d3.select("#details-panel-content");
+                let content = '';
+                if (d.type === 'regulation') {
+                    content = `<h3 class="text-lg font-semibold text-white mb-2">${d.title}</h3><p class="text-sm text-gray-300 mb-4">${d.description}</p><div class="space-y-2 text-sm"><p><strong class="text-gray-400 w-28 inline-block">Impact:</strong> <span class="font-semibold" style="color:${colorScales.impact[d.impactLevel]}">${d.impactLevel}</span></p><p><strong class="text-gray-400 w-28 inline-block">Published:</strong> ${d.publicationDate}</p><p><strong class="text-gray-400 w-28 inline-block">Effective:</strong> ${d.effectiveDate}</p><p><strong class="text-gray-400 w-28 inline-block">Sectors:</strong> ${d.relevantSectors.join(', ')}</p><p><a href="${d.referenceLink}" target="_blank" class="hover:underline" style="color: var(--accent-color);">Reference Link &rarr;</a></p></div>`;
+                } else if (d.type === 'policy') {
+                    content = `<h3 class="text-lg font-semibold text-white mb-2">${d.policyName}</h3><p class="text-sm text-gray-300 mb-4">${d.description}</p><div class="space-y-2 text-sm"><p><strong class="text-gray-400 w-28 inline-block">Criticalness:</strong> <span class="font-semibold" style="color:${colorScales.criticalness[d.criticalnessScore]}">${d.criticalnessScore}</span></p><p><strong class="text-gray-400 w-28 inline-block">Sector:</strong> ${d.relatedSector}</p><p><strong class="text-gray-400 w-28 inline-block">Last Updated:</strong> ${d.lastUpdated}</p></div>`;
+                }
+                panel.html(content);
+            }
+
+            initializeDashboard();
+        });
+    </script>
+</body>
+</html>
